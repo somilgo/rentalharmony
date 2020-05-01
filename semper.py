@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 import copy
+from functools import partial
 
 class Edge:
 
@@ -28,7 +29,7 @@ class Vertex:
 	def __hash__(self):
 		if self.coords == None:
 			return 0
-		return hash(frozenset([c.tostring() for c in self.coords]))
+		return hash(frozenset(self.coords))
 
 	def __eq__(self, other):
 		return hash(self) == hash(other)
@@ -66,10 +67,11 @@ def generate_graph(sub_divs):
 	n = len(sub_divs[0])
 	count = 0
 	for sub_div in sub_divs:
+		sub_div = [tuple(round(x, 7) for x in y) for y in sub_div]
 		count += 1
 		new_vert = Vertex(sub_div)
 		for x in range(n):
-			hashed_edge = frozenset([(sub_div[a]).tostring() for a in range(n) if a != x])
+			hashed_edge = frozenset([sub_div[a] for a in range(n) if a != x])
 			for vert in verts.get(hashed_edge, []):
 				new_vert.add_edge(vert, hashed_edge)
 			if verts.get(hashed_edge):
@@ -90,11 +92,11 @@ def subdivide_wrapper(simplex_points, iterations):
 		for perm in perms:
 			sub_verts = []
 			for i in range(n):
-				v = np.zeros((n,))
+				v = [0] * n
 				for j in range(i+1):
-					v += perm[j]
-				v = v / (i+1)
-				sub_verts.append(np.round(v, 7))
+					v = [v[k] + perm[j][k] for k in range(n)]
+				v = tuple([x / (i+1) for x in v])
+				sub_verts.append(v)
 			sub_divs.append(sub_verts)
 
 		all_sub_divs = []
@@ -104,17 +106,17 @@ def subdivide_wrapper(simplex_points, iterations):
 
 	print("Subdividing...")
 	sub_divs = subdivide(simplex_points, iterations)
+
 	print("Done Subdividing!")
 	return generate_graph(sub_divs)
 
-def assign_owners(start_vert):
+def assign_owners(start_vert, gg):
 	n = len(start_vert.coords)
 	owner_labels = {}
 	for label, coord in zip(range(n),start_vert.coords):
-
-		if owner_labels.get(coord.tostring()):
+		if owner_labels.get(coord):
 			raise BaseException
-		owner_labels[coord.tostring()] = label
+		owner_labels[coord] = label
 
 	labeled = set()
 	labeled.add(start_vert)
@@ -125,23 +127,26 @@ def assign_owners(start_vert):
 		vert = to_label.pop(0)
 		if vert in labeled:
 			continue
-		unlabeled_coord = np.zeros((1,))
+		unlabeled_coord = None
+		found_unlabeled = False
 		unused_labels = set(range(n))
 		for coord in vert.coords:
-			label = owner_labels.get(coord.tostring())
+			label = owner_labels.get(coord)
 			if label == None:
-				if not np.array_equal(unlabeled_coord,np.zeros((1,))):
+				if found_unlabeled:
 					raise BaseException
 				unlabeled_coord = coord
+				found_unlabeled = True
 			else:
 				unused_labels.remove(label)
 
-		if not np.array_equal(unlabeled_coord,np.zeros((1,))) and (len(unused_labels) == 1):
-			owner_labels[unlabeled_coord.tostring()] = unused_labels.pop()
+		if found_unlabeled and (len(unused_labels) == 1):
+			owner_labels[unlabeled_coord] = unused_labels.pop()
 		labeled.add(vert)
 		for e in vert.edges:
 			if e.neighbor not in labeled:
 				to_label.append(e.neighbor)
+
 	return owner_labels
 
 def traverse_trap_doors(graph, owner_labels, bidders):
@@ -154,44 +159,45 @@ def traverse_trap_doors(graph, owner_labels, bidders):
 			border_simplex = []
 			trunc_bidders = []
 			for edge_set in graph:
-				edge_set = [np.fromstring(c) for c in edge_set]
 				if all([c[i]==0 for c in edge_set]):
 					border_simplex.append(edge_set)
 			simplex_graph = generate_graph(border_simplex)
 			output = traverse_trap_doors(simplex_graph, owner_labels, bidders)
 			for o in output:
-				trap_doors.append(frozenset([x.tostring() for x in o.coords]))
+				trap_doors.append(frozenset(o.coords))
 		return trap_doors
 
 
 	def check_if_trap_door(edge):
 		unused_prefs = set(range(n))
 		for coord in edge.data:
-			pref = bidders[owner_labels[coord]].pref(np.fromstring(coord))
+			pref = bidders[owner_labels[coord]].pref(coord)
 			if pref in unused_prefs:
 				unused_prefs.remove(pref)
 		return len(unused_prefs) == 1
 
 	def check_if_disparate(vertex):
-		unused_prefs = set(range(n))
+		used_prefs = set()
 		for coord in vertex.coords:
-			pref = bidders[owner_labels[coord.tostring()]].pref(coord)
-			if pref in unused_prefs:
-				unused_prefs.remove(pref)
-		return len(unused_prefs) == 0
+			pref = bidders[owner_labels[coord]].pref(coord)
+			used_prefs.add(pref)
+		return len(used_prefs) == n
 	
 	disparates = set()
+	full_disparates = set()
+	
 	if n == 2:
 		for vertices in graph.values():
 			for vertex in vertices:
 				if check_if_disparate(vertex):
 					disparates.add(vertex)
 	else:
+		#For testing purposes - brute force comparison
 		# for vertices in graph.values():
 		# 	for vertex in vertices:
 		# 		if check_if_disparate(vertex):
-		# 			disparates.add(vertex)
-		# return disparates
+		# 			full_disparates.add(vertex)
+		# return full_disparates
 		starting_edges = get_trap_doors()
 		traversed = set()
 		to_traverse = []
@@ -210,22 +216,52 @@ def traverse_trap_doors(graph, owner_labels, bidders):
 				traversed.add(vertex)
 	return disparates
 
+def compute_average_solution(v):
+	n = len(v.coords)
+	average_sol = [0.] * n
+	for coord in v.coords:
+		average_sol = [average_sol[i] + coord[i] for i in range(n)]
+	average_sol = [x / n for x in average_sol]
 
+	return average_sol
+
+def check_solution_quality(v, bidders = []):
+	n = len(v.coords)
+	#Compute average solution from approximate
+	average_sol = compute_average_solution(v)
+
+	#Make sure everyone prefers a different room
+	used_prefs = set()
+	social_welfare = 0.
+	total_utility = 0.
+	for bidder in bidders:
+		pref = bidder.pref(average_sol)
+		social_welfare += bidder.valuation[pref]
+		total_utility += bidder.valuation[pref] - average_sol[pref]
+		used_prefs.add(pref)
+
+	if len(used_prefs) != n:
+		return -1e9, -1e9 #This solution is not envy free
+	return social_welfare, total_utility
 
 
 print("Creating Graph via Semper Triangle...")
-graph = subdivide_wrapper([np.array([1,0,0,0]), np.array([0,0,1,0]), np.array([0,1,0,0]), np.array([0,0,0,1])], 4)
-
+graph = subdivide_wrapper([np.array([1,0,0,0]), np.array([0,0,1,0]), np.array([0,1,0,0])], 5)
 print("Done creating graph!")
 print("Labelling the Semper Triangle with owners...")
-owner_labels = assign_owners(next(iter(graph.values()))[0])
+owner_labels = assign_owners(next(iter(graph.values()))[0], graph)
+
 print("Done Labelling!")
 print("Solving for approximate solution...")
-bidders3 = [Bidder(0,[0.33, 0.33, 0.33]), Bidder(1,[0.5, 0.25, 0.25]), Bidder(2,[0.75, 0.2, 0.05])]
+bidders3 = [Bidder(0,[0.34, 0.35, 0.33]), Bidder(1,[0.5, 0.20, 0.35]), Bidder(2,[0.75, 0.2, 0.05])]
 bidders4 = [Bidder(0,[0.25, 0.25, 0.25, 0.25]), 
 			Bidder(1,[0.5, 0.5/3, 0.5/3, 0.5/3]), 
 			Bidder(2,[.2, 0.3, 0.1, 0.4]),
 			Bidder(3,[0.8, .1, .07, .03])]
-solutions = traverse_trap_doors(graph, owner_labels,bidders4)
-print("Solved! Computed", len(solutions), "solutions:")
-print(solutions)
+bidders = bidders4
+solutions = traverse_trap_doors(graph, owner_labels,bidders)
+print("Solved! Computed", len(solutions), "solutions.")
+best_solution = max(solutions, key=partial(check_solution_quality, bidders=bidders))
+print("Best Solution:", compute_average_solution(best_solution), 
+		"with (social welfare, total_utility)", check_solution_quality(best_solution, bidders=bidders))
+
