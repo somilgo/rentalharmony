@@ -246,7 +246,7 @@ def check_solution_quality(v, bidders = []):
 
 
 print("Creating Graph via Semper Triangle...")
-graph = subdivide_wrapper([np.array([1,0,0,0]), np.array([0,0,1,0]), np.array([0,1,0,0])], 5)
+graph = subdivide_wrapper([np.array([1,0,0,0]), np.array([0,0,1,0]), np.array([0,1,0,0]), np.array([0,0,0,1])], 4)
 print("Done creating graph!")
 print("Labelling the Semper Triangle with owners...")
 owner_labels = assign_owners(next(iter(graph.values()))[0], graph)
