@@ -61,6 +61,11 @@ class Bidder:
 		utility = [value - price for value, price in zip(self.valuation, prices)]
 		return utility.index(max(utility))
 
+def is_coplanar(v, vertices):
+	vectors = [v - vertex for vertex in vertices]
+	rank = np.linalg.matrix_rank(np.array(vectors))
+	return rank <= 2
+
 def generate_graph(sub_divs):
 	verts = {}
 	vertstest = {}
@@ -82,19 +87,19 @@ def generate_graph(sub_divs):
 
 
 def subdivide_wrapper(simplex_points, iterations):
-
 	def subdivide(p, iterations):
 		if iterations == 0:
 			return [p]
 		n = len(p)
+		dim = len(p[0])
 		perms = itertools.permutations(p)
 		sub_divs = []
 		for perm in perms:
 			sub_verts = []
 			for i in range(n):
-				v = [0] * n
+				v = [0] * dim
 				for j in range(i+1):
-					v = [v[k] + perm[j][k] for k in range(n)]
+					v = [v[k] + perm[j][k] for k in range(dim)]
 				v = tuple([x / (i+1) for x in v])
 				sub_verts.append(v)
 			sub_divs.append(sub_verts)
@@ -111,6 +116,7 @@ def subdivide_wrapper(simplex_points, iterations):
 	return generate_graph(sub_divs)
 
 def assign_owners(start_vert, gg):
+
 	n = len(start_vert.coords)
 	owner_labels = {}
 	for label, coord in zip(range(n),start_vert.coords):
@@ -148,8 +154,7 @@ def assign_owners(start_vert, gg):
 				to_label.append(e.neighbor)
 
 	return owner_labels
-
-def traverse_trap_doors(graph, owner_labels, bidders):
+def traverse_trap_doors(graph, owner_labels, bidders, brute_force = False):
 	n = len(next(iter(graph.values()))[0].coords)
 
 	def get_trap_doors():
@@ -166,8 +171,6 @@ def traverse_trap_doors(graph, owner_labels, bidders):
 			for o in output:
 				trap_doors.append(frozenset(o.coords))
 		return trap_doors
-
-
 	def check_if_trap_door(edge):
 		unused_prefs = set(range(n))
 		for coord in edge.data:
@@ -192,28 +195,29 @@ def traverse_trap_doors(graph, owner_labels, bidders):
 				if check_if_disparate(vertex):
 					disparates.add(vertex)
 	else:
-		#For testing purposes - brute force comparison
-		# for vertices in graph.values():
-		# 	for vertex in vertices:
-		# 		if check_if_disparate(vertex):
-		# 			full_disparates.add(vertex)
-		# return full_disparates
-		starting_edges = get_trap_doors()
-		traversed = set()
-		to_traverse = []
-		to_traverse += starting_edges
-		while len(to_traverse) != 0:
-			edge = to_traverse.pop()
-			vertices = graph[edge]
-			for vertex in vertices:
-				if vertex in traversed:
-					continue
-				if check_if_disparate(vertex):
-					disparates.add(vertex)
-				for e in vertex.edges:
-					if check_if_trap_door(e):
-						to_traverse.append(e.data)
-				traversed.add(vertex)
+		if brute_force:
+			for vertices in graph.values():
+				for vertex in vertices:
+					if check_if_disparate(vertex):
+						full_disparates.add(vertex)
+			return full_disparates
+		else:
+			starting_edges = get_trap_doors()
+			traversed = set()
+			to_traverse = []
+			to_traverse += starting_edges
+			while len(to_traverse) != 0:
+				edge = to_traverse.pop()
+				vertices = graph[edge]
+				for vertex in vertices:
+					if vertex in traversed:
+						continue
+					if check_if_disparate(vertex):
+						disparates.add(vertex)
+					for e in vertex.edges:
+						if check_if_trap_door(e):
+							to_traverse.append(e.data)
+					traversed.add(vertex)
 	return disparates
 
 def compute_average_solution(v):
@@ -244,24 +248,40 @@ def check_solution_quality(v, bidders = []):
 		return -1e9, -1e9 #This solution is not envy free
 	return social_welfare, total_utility
 
+def create_n_simplex(n):
+	simplex = []
+	for i in range(n):
+		x = [0.] * n
+		x[i] = 1
+		simplex.append(np.array(x))
+	return simplex
 
-print("Creating Graph via Semper Triangle...")
-graph = subdivide_wrapper([np.array([1,0,0,0]), np.array([0,0,1,0]), np.array([0,1,0,0]), np.array([0,0,0,1])], 4)
+
+bidders = {
+	3 : [Bidder(0,[0.34, 0.35, 0.33]), Bidder(1,[0.5, 0.20, 0.35]), Bidder(2,[0.75, 0.2, 0.05])], 
+	4 : [Bidder(0,[0.25, 0.25, 0.25, 0.25]), 
+		Bidder(1,[0.5, 0.5/3, 0.5/3, 0.5/3]), 
+		Bidder(2,[.2, 0.3, 0.1, 0.4]),
+		Bidder(3,[0.8, .1, .07, .03])]
+}
+
+
+n = 4
+number_of_subdivisions = 3
+simplex = create_n_simplex(n)
+
+print("Creating Graph via Sperner Triangle...")
+graph = subdivide_wrapper(simplex, number_of_subdivisions)
 print("Done creating graph!")
-print("Labelling the Semper Triangle with owners...")
-owner_labels = assign_owners(next(iter(graph.values()))[0], graph)
 
+print("Labelling the Sperner Triangle with owners...")
+owner_labels = assign_owners(next(iter(graph.values()))[0], graph)
 print("Done Labelling!")
+
 print("Solving for approximate solution...")
-bidders3 = [Bidder(0,[0.34, 0.35, 0.33]), Bidder(1,[0.5, 0.20, 0.35]), Bidder(2,[0.75, 0.2, 0.05])]
-bidders4 = [Bidder(0,[0.25, 0.25, 0.25, 0.25]), 
-			Bidder(1,[0.5, 0.5/3, 0.5/3, 0.5/3]), 
-			Bidder(2,[.2, 0.3, 0.1, 0.4]),
-			Bidder(3,[0.8, .1, .07, .03])]
-bidders = bidders4
-solutions = traverse_trap_doors(graph, owner_labels,bidders)
+solutions = traverse_trap_doors(graph, owner_labels,bidders[n])
 print("Solved! Computed", len(solutions), "solutions.")
-best_solution = max(solutions, key=partial(check_solution_quality, bidders=bidders))
+best_solution = max(solutions, key=partial(check_solution_quality, bidders=bidders[n]))
 print("Best Solution:", compute_average_solution(best_solution), 
-		"with (social welfare, total_utility)", check_solution_quality(best_solution, bidders=bidders))
+		"with (social welfare, total_utility)", check_solution_quality(best_solution, bidders=bidders[n]))
 
