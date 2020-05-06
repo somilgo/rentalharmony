@@ -37,6 +37,8 @@ class Bidder:
 	def recompute_demand_set(self, prices):
 		max_utility = -1e9
 		demand_set = []
+		n = self.n
+		self.prices = prices
 		for i in range(n):
 			curr_utility = self.valuations[i] - self.prices[i]
 			if curr_utility > max_utility:
@@ -44,13 +46,24 @@ class Bidder:
 				demand_set = [ i ]
 			elif curr_utility == max_utility:
 				demand_set.append(i)
-		self.demand_set = demand_set
+		self.demand_set = set(demand_set)
 
+	def indirect_utility(self, prices):
+		max_utility = -1e9
+		n = self.n
+		for i in range(n):
+			curr_utility = self.valuations[i] - self.prices[i]
+			if curr_utility > max_utility:
+				max_utility = curr_utility
+		return max_utility
+
+	def utility(self, i, prices):
+		return self.valuations[i] - self.prices[i]
 
 
 class BidderGroup:
 
-	def __init__(self, n, valuation_scheme = "simplex", max_val):
+	def __init__(self, n, valuation_scheme = "simplex", max_val=0):
 		bidders = [Bidder() for i in range(n)]
 		for bidder in bidders:
 			if valuation_scheme == "simplex":
