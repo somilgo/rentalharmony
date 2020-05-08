@@ -22,6 +22,7 @@ class Edge:
 
 class Vertex:
 
+<<<<<<< HEAD
     def __init__(self, coords):
         self.coords = coords
         self.edges = []
@@ -69,6 +70,53 @@ class Bidder:
                    price in zip(self.valuation, prices)]
         return utility.index(max(utility))
 
+=======
+	def __init__(self, coords):
+		self.coords = coords
+		self.edges = []
+
+	def add_edge(self, neighbor, data):
+		self.edges.append(Edge(neighbor, data))
+		neighbor.edges.append(Edge(self, data))
+
+	def __hash__(self):
+		if self.coords == None:
+			return 0
+		return hash(frozenset(self.coords))
+
+	def __eq__(self, other):
+		return hash(self) == hash(other)
+
+	def __str__(self):
+		return str(self.coords)
+	def __unicode__(self):
+		return str(self.coords)
+	def __repr__(self):
+		return "Vertex: " + str(self.coords)
+
+class Bidder: 
+
+	def __init__(self, name, valuation):
+		self.name = name
+		self.valuation = valuation
+
+	def utility(self, prices, i):
+		return self.valuation[i] - prices[i]
+
+	def pref(self, prices):
+		show=False
+		for p in range(len(prices)):
+			if prices[p] == 1:
+				out = len(prices)-1 if p==0 else p-1
+				return out
+			if prices[p] != 0:
+				break
+		for i in range(len(prices)):
+			if prices[i] == 0:
+				return i
+		utility = [value - price for value, price in zip(self.valuation, prices)]
+		return utility.index(max(utility))
+>>>>>>> 59a01bd9213c68b07115fc79047f52085379ae24
 
 def is_coplanar(v, vertices):
     vectors = [v - vertex for vertex in vertices]
@@ -128,6 +176,7 @@ def subdivide_wrapper(simplex_points, iterations):
 
 def assign_owners(start_vert, gg):
 
+<<<<<<< HEAD
     n = len(start_vert.coords)
     owner_labels = {}
     for label, coord in zip(range(n), start_vert.coords):
@@ -234,6 +283,113 @@ def traverse_trap_doors(graph, owner_labels, bidders, brute_force=False):
                     traversed.add(vertex)
     return disparates
 
+=======
+	n = len(start_vert.coords)
+	owner_labels = {}
+	for label, coord in zip(range(n),start_vert.coords):
+		if owner_labels.get(coord):
+			raise BaseException
+		owner_labels[coord] = label
+
+	labeled = set()
+	labeled.add(start_vert)
+	to_label = []
+	for e in start_vert.edges:
+		to_label.append(e.neighbor)
+	while len(to_label) > 0:
+		vert = to_label.pop(0)
+		if vert in labeled:
+			continue
+		unlabeled_coord = None
+		found_unlabeled = False
+		unused_labels = set(range(n))
+		for coord in vert.coords:
+			label = owner_labels.get(coord)
+			if label == None:
+				if found_unlabeled:
+					raise BaseException
+				unlabeled_coord = coord
+				found_unlabeled = True
+			else:
+				unused_labels.remove(label)
+
+		if found_unlabeled and (len(unused_labels) == 1):
+			owner_labels[unlabeled_coord] = unused_labels.pop()
+		labeled.add(vert)
+		for e in vert.edges:
+			if e.neighbor not in labeled:
+				to_label.append(e.neighbor)
+
+	return owner_labels
+def traverse_trap_doors(graph, owner_labels, bidders, brute_force = False):
+	n = len(next(iter(graph.values()))[0].coords)
+
+	def get_trap_doors():
+		trans_owner_labels = {}
+		trap_doors = []
+		for i in range(n):
+			border_simplex = []
+			trunc_bidders = []
+			for edge_set in graph:
+				if all([c[i]==0 for c in edge_set]):
+					border_simplex.append(edge_set)
+			simplex_graph = generate_graph(border_simplex)
+			output = traverse_trap_doors(simplex_graph, owner_labels, bidders)
+			for o in output:
+				trap_doors.append(frozenset(o.coords))
+		return trap_doors
+	def check_if_trap_door(edge):
+		unused_prefs = set(range(n))
+		for coord in edge.data:
+			pref = bidders[owner_labels[coord]].pref(coord)
+			if pref in unused_prefs:
+				unused_prefs.remove(pref)
+		return len(unused_prefs) == 1
+
+	def check_if_disparate(vertex):
+		used_prefs = set()
+		used_owners = set()
+		for coord in vertex.coords:
+			pref = bidders[owner_labels[coord]].pref(coord)
+			used_owners.add(owner_labels[coord])
+			used_prefs.add(pref)
+		assert(len(used_owners) == n)
+		return len(used_prefs) == n
+	
+	disparates = set()
+	full_disparates = set()
+	
+	if n == 2:
+		for vertices in graph.values():
+			for vertex in vertices:
+				if check_if_disparate(vertex):
+					disparates.add(vertex)
+	else:
+		if brute_force:
+			for vertices in graph.values():
+				for vertex in vertices:
+					if check_if_disparate(vertex):
+						full_disparates.add(vertex)
+			return full_disparates
+		else:
+			starting_edges = get_trap_doors()
+			traversed = set()
+			to_traverse = []
+			to_traverse += starting_edges
+			while len(to_traverse) != 0:
+				edge = to_traverse.pop()
+				vertices = graph[edge]
+				for vertex in vertices:
+					if vertex in traversed:
+						continue
+					if check_if_disparate(vertex):
+						disparates.add(vertex)
+					for e in vertex.edges:
+						if check_if_trap_door(e):
+							to_traverse.append(e.data)
+					traversed.add(vertex)
+	return disparates
+>>>>>>> 59a01bd9213c68b07115fc79047f52085379ae24
 
 def compute_average_solution(v):
     n = len(v.coords)
