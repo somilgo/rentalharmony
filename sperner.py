@@ -47,6 +47,9 @@ class Bidder:
 		self.name = name
 		self.valuation = valuation
 
+	def utility(self, prices, i):
+		return self.valuation[i] - prices[i]
+
 	def pref(self, prices):
 		show=False
 		for p in range(len(prices)):
@@ -181,9 +184,12 @@ def traverse_trap_doors(graph, owner_labels, bidders, brute_force = False):
 
 	def check_if_disparate(vertex):
 		used_prefs = set()
+		used_owners = set()
 		for coord in vertex.coords:
 			pref = bidders[owner_labels[coord]].pref(coord)
+			used_owners.add(owner_labels[coord])
 			used_prefs.add(pref)
+		assert(len(used_owners) == n)
 		return len(used_prefs) == n
 	
 	disparates = set()

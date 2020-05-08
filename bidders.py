@@ -24,7 +24,7 @@ class Bidder:
 		valuations = []
 		for i in range(n):
 			valuations.append(max_price_per_room * random.random())
-		self.valuatinos = valuations
+		self.valuations = valuations
 
 	def initialize_random_int_valuations(self, n, max_price_per_room = 100):
 		assert(int(max_price_per_room) == max_price_per_room)
@@ -32,7 +32,7 @@ class Bidder:
 		valuations = []
 		for i in range(n):
 			valuations.append(random.randint(0,max_price_per_room))
-		self.valuatinos = valuations
+		self.valuations = valuations
 
 	def recompute_demand_set(self, prices):
 		max_utility = -1e9

@@ -137,20 +137,21 @@ def compute_price_differential(od, bidders, prices):
 def conduct_discrete_price_auction(bidders, C):
 	n = len(bidders)
 	prices = [C/n] * n
-	
+	count = 0
 	while True:
+		count+=1
+		print("Price on iteration", str(count)+ ":")
+		print(prices)
 		for bidder in bidders:
 			bidder.recompute_demand_set(prices)
-
 		od = compute_ODS(bidders)
+		print("FODS on iteration", str(count)+ ":")
+		print(od)
 		for bidder in bidders:
 			bidder.recompute_demand_set(prices)
-
 		if len(od) == 0:
 			return compute_maximum_matching(bidders, n), prices
-		
 		x = compute_price_differential(od, bidders, prices)
-
 		for r in range(n):
 			if r not in od:
 				prices[r] -= len(od) * x / n
@@ -165,5 +166,14 @@ bidders[3].initialize_valuations([15,  5, 18, 12,  9, 25])
 bidders[4].initialize_valuations([ 6, 22,  5,  5, 10, 12])
 bidders[5].initialize_valuations([ 6,  9,  2, 21, 25,  9])
 C = 60
+res = conduct_discrete_price_auction(bidders, C)
+print("The envy-free assignment is given by:", "\nmu = " + str(res[0]) + "\np = " + str(res[1]))
 
-print(conduct_discrete_price_auction(bidders, C))
+# bidders = []
+# n = 100
+# for i in range(n):
+# 	bidders.append(Bidder())
+# 	bidders[i].initialize_random_int_valuations(n)
+# C = n * 50
+# res = conduct_discrete_price_auction(bidders, C)
+# print("The envy-free assignment is given by:", "\nmu = " + str(res[0]) + "\np = " + str(res[1]))
