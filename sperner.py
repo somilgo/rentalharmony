@@ -272,8 +272,8 @@ bidders = {
 }
 
 
-n = 4
-number_of_subdivisions = 3
+n = 3
+number_of_subdivisions = 5
 simplex = create_n_simplex(n)
 
 print("Creating Graph via Sperner Triangle...")
